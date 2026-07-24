@@ -13,3 +13,6 @@ build/
 
 # Local planning notes (not published)
 PLAN/
+
+# Local secrets
+.env

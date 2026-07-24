@@ -109,18 +109,26 @@ curl -su "$EMAIL:$TOKEN" \
 
 Pick the id whose `name` is `Epic`.
 
-## Dry run
+## Local testing
 
-The safest first test. Trigger `workflow_dispatch` with `dry-run: true`, or run
-locally:
+Run the exact same code path locally for quick iteration:
 
 ```bash
-uv run python -m gh_jira_sync --dry-run --verbose
+cp .env.example .env          # then fill in your Jira + GitHub values
+uv run --env-file .env python -m gh_jira_sync --dry-run --verbose
 ```
 
-It prints every intended create/update/transition/label action without writing
-to Jira. All inputs are read from `INPUT_*` environment variables (the GitHub
-Action convention); `--only N`, `--dry-run` and `--verbose` mirror the inputs.
+`.env` is gitignored. Inputs are read from `INPUT_*` env vars (the GitHub
+Action convention); `--only N`, `--dry-run` and `--verbose` mirror the action
+inputs and override the env values.
+
+## Dry run
+
+The safest first test — `--dry-run` (locally) or `dry-run: true` on a
+`workflow_dispatch` trigger prints every intended create/update/transition/label
+action without writing to Jira. When a Jira call fails, the error includes
+Jira's own `errorMessages`/`errors` detail (not just the HTTP status), so a
+rejected create tells you exactly which field it disliked.
 
 ## Versioning
 

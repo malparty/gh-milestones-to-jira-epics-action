@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
-from gh_jira_sync.jira import JiraClient
+from gh_jira_sync.jira import JiraClient, JiraError
 
 
 def _client(handler: httpx.MockTransport, recorder: list[httpx.Request] | None = None) -> JiraClient:
@@ -75,6 +76,22 @@ def test_create_epic_includes_duedate_when_set() -> None:
         "RD", "11087", summary="M", description={}, labels=["gh-ms-1"], duedate="2026-08-01"
     )
     assert captured["fields"]["duedate"] == "2026-08-01"
+
+
+def test_error_surfaces_jira_detail() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "errorMessages": [],
+                "errors": {"labels": "Field 'labels' cannot be set. It is not on the appropriate screen, or unknown."},
+            },
+        )
+
+    with pytest.raises(JiraError, match="labels: Field 'labels' cannot be set"):
+        _client(httpx.MockTransport(handle)).create_epic(
+            "RD", "11087", summary="M", description={}, labels=["gh-ms-1"], duedate=None
+        )
 
 
 def test_get_transitions_extracts_category() -> None:
