@@ -1,9 +1,13 @@
 name: Self-test (dogfood)
 
 # Runs this action against its own repository's milestones in dry-run mode,
-# proving the composite action wires up end-to-end. Manual only: it needs Jira
-# credentials configured as repository secrets (JIRA_EMAIL / JIRA_API_TOKEN)
-# and reads — but never writes — Jira.
+# proving the composite action wires up end-to-end. Manual only.
+#
+# Requires, on this repo (Settings → Secrets and variables → Actions):
+#   Secrets:   JIRA_EMAIL, JIRA_API_TOKEN
+#   Variables: JIRA_BASE_URL, JIRA_PROJECT_KEY, JIRA_EPIC_ISSUE_TYPE_ID
+#              (JIRA_EXTRA_LABELS optional)
+# Nothing instance-specific is hardcoded; dry-run reads but never writes Jira.
 
 on:
   workflow_dispatch:
@@ -25,12 +29,12 @@ jobs:
       - id: sync
         uses: ./
         with:
-          jira-base-url: https://rivrs.atlassian.net
+          jira-base-url: ${{ vars.JIRA_BASE_URL }}
           jira-email: ${{ secrets.JIRA_EMAIL }}
           jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
-          jira-project-key: RD
-          jira-epic-issue-type-id: "11087"
-          jira-extra-labels: github-auto-sync
+          jira-project-key: ${{ vars.JIRA_PROJECT_KEY }}
+          jira-epic-issue-type-id: ${{ vars.JIRA_EPIC_ISSUE_TYPE_ID }}
+          jira-extra-labels: ${{ vars.JIRA_EXTRA_LABELS }}
           dry-run: ${{ inputs.dry-run }}
           verbose: "true"
       - name: Summary
