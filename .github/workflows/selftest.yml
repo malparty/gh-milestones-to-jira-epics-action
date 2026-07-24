@@ -1,0 +1,41 @@
+name: Self-test (dogfood)
+
+# Runs this action against its own repository's milestones in dry-run mode,
+# proving the composite action wires up end-to-end. Manual only: it needs Jira
+# credentials configured as repository secrets (JIRA_EMAIL / JIRA_API_TOKEN)
+# and reads — but never writes — Jira.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run without writing to Jira
+        type: boolean
+        default: true
+
+permissions:
+  issues: read
+  contents: read
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: sync
+        uses: ./
+        with:
+          jira-base-url: https://rivrs.atlassian.net
+          jira-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-project-key: RD
+          jira-epic-issue-type-id: "11087"
+          jira-extra-labels: github-auto-sync
+          dry-run: ${{ inputs.dry-run }}
+          verbose: "true"
+      - name: Summary
+        run: |
+          echo "created=${{ steps.sync.outputs.created }}"
+          echo "updated=${{ steps.sync.outputs.updated }}"
+          echo "unchanged=${{ steps.sync.outputs.unchanged }}"
+          echo "skipped=${{ steps.sync.outputs.skipped }}"

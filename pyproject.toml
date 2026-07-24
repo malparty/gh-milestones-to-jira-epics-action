@@ -1,0 +1,47 @@
+[project]
+name = "gh-jira-sync"
+version = "1.0.0"
+description = "Mirror a repo's GitHub milestones into Jira Cloud epics (one-way, idempotent)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "malparty" }]
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8.2",
+]
+
+[project.scripts]
+gh-jira-sync = "gh_jira_sync.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gh_jira_sync"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]  # long fixture literals are fine in tests
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,141 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em"
+            }
+          ],
+          "text": "Epic sync from ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "em"
+            },
+            {
+              "attrs": {
+                "href": "https://github.com/malparty/demo/milestones"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "GitHub",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "em"
+            }
+          ],
+          "text": ". Do NOT edit in Jira!",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "level": 3
+      },
+      "content": [
+        {
+          "text": "1/3 issues closed",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "text": "Deliver the release.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "level": 3
+      },
+      "content": [
+        {
+          "text": "Open issues",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "#8 Write docs",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "#12 Wire the pipeline",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "attrs": {
+        "level": 3
+      },
+      "content": [
+        {
+          "text": "Closed issues",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "#3 Scaffold repo — closed 2026-07-20",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    }
+  ],
+  "type": "doc",
+  "version": 1
+}

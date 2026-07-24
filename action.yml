@@ -1,0 +1,79 @@
+name: GitHub Milestones → Jira Epics
+description: Mirror a repo's GitHub milestones into Jira Cloud epics (one-way, idempotent).
+author: malparty
+branding:
+  icon: refresh-cw
+  color: blue
+
+inputs:
+  jira-base-url:
+    description: Jira Cloud base URL, e.g. https://your-org.atlassian.net
+    required: true
+  jira-email:
+    description: Account email for the Jira API token (store as a secret).
+    required: true
+  jira-api-token:
+    description: Jira Cloud API token (store as a secret).
+    required: true
+  jira-project-key:
+    description: Target Jira project key, e.g. RD.
+    required: true
+  jira-epic-issue-type-id:
+    description: Epic issue-type id for the project (instance-specific).
+    required: true
+  jira-extra-labels:
+    description: Comma-separated labels merged onto every epic (trimmed, deduped, no spaces).
+    required: false
+    default: ""
+  github-token:
+    description: Token used to read milestones and issues.
+    required: false
+    default: ${{ github.token }}
+  only:
+    description: Sync a single milestone by number (used on the milestone-event path).
+    required: false
+    default: ""
+  dry-run:
+    description: Print intended actions without writing to Jira.
+    required: false
+    default: "false"
+  verbose:
+    description: Log unchanged milestones too.
+    required: false
+    default: "false"
+
+outputs:
+  created:
+    description: Count of epics created.
+    value: ${{ steps.sync.outputs.created }}
+  updated:
+    description: Count of epics updated.
+    value: ${{ steps.sync.outputs.updated }}
+  unchanged:
+    description: Count of no-op milestones.
+    value: ${{ steps.sync.outputs.unchanged }}
+  skipped:
+    description: Count skipped (e.g. more than one epic per label).
+    value: ${{ steps.sync.outputs.skipped }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.11.21"
+    - id: sync
+      shell: bash
+      run: uv run --project "$GITHUB_ACTION_PATH" --python 3.12 python -m gh_jira_sync
+      env:
+        INPUT_JIRA_BASE_URL: ${{ inputs.jira-base-url }}
+        INPUT_JIRA_EMAIL: ${{ inputs.jira-email }}
+        INPUT_JIRA_API_TOKEN: ${{ inputs.jira-api-token }}
+        INPUT_JIRA_PROJECT_KEY: ${{ inputs.jira-project-key }}
+        INPUT_JIRA_EPIC_ISSUE_TYPE_ID: ${{ inputs.jira-epic-issue-type-id }}
+        INPUT_JIRA_EXTRA_LABELS: ${{ inputs.jira-extra-labels }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_ONLY: ${{ inputs.only }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+        GITHUB_REPOSITORY: ${{ github.repository }}

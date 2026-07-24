@@ -1,0 +1,56 @@
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em"
+            }
+          ],
+          "text": "Epic sync from ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "em"
+            },
+            {
+              "attrs": {
+                "href": "https://github.com/malparty/demo/milestones"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "GitHub",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "em"
+            }
+          ],
+          "text": ". Do NOT edit in Jira!",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attrs": {
+        "level": 3
+      },
+      "content": [
+        {
+          "text": "0/0 issues closed",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    }
+  ],
+  "type": "doc",
+  "version": 1
+}
