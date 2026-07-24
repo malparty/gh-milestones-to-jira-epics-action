@@ -78,6 +78,21 @@ def test_create_epic_includes_duedate_when_set() -> None:
     assert captured["fields"]["duedate"] == "2026-08-01"
 
 
+def test_verify_auth_ok_returns_account() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"emailAddress": "me@rivrs.io", "accountId": "abc"})
+
+    assert _client(httpx.MockTransport(handle)).verify_auth() == "me@rivrs.io"
+
+
+def test_verify_auth_401_flags_scoped_token() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, text="Client must be authenticated to access this resource.")
+
+    with pytest.raises(JiraError, match="scoped API tokens"):
+        _client(httpx.MockTransport(handle)).verify_auth()
+
+
 def test_error_surfaces_jira_detail() -> None:
     def handle(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

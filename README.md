@@ -89,10 +89,13 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 
 ## Required secrets & permissions
 
-- **Jira:** create an [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-  for an account that can create/edit/transition issues in the target project.
-  Store `jira-email` and `jira-api-token` as repository (or org) secrets. Auth is
-  Jira Cloud REST v3 Basic auth (`base64(email:api_token)`).
+- **Jira:** create a **classic** [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+  — use **"Create API token"**, *not* "Create API token with scopes". Scoped
+  tokens (prefix `ATATT`) only authenticate against Atlassian's `api.atlassian.com`
+  gateway, not the site URL this action uses, so they fail with a `401`. Use an
+  account that can create/edit/transition issues in the target project. Store
+  `jira-email` and `jira-api-token` as repository (or org) secrets. Auth is Jira
+  Cloud REST v3 Basic auth (`base64(email:api_token)`).
 - **GitHub:** the default `github-token` needs `issues: read` and
   `contents: read` — set them in the workflow `permissions:` block.
 

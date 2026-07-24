@@ -191,6 +191,7 @@ def _apply_status(
 def sync(cfg: Config, gh: GitHubClient, jira: JiraClient, log: Logger) -> SyncResult:
     """Run the full upsert pass and return counts (§7)."""
     result = SyncResult()
+    log(f"authenticated to Jira as {jira.verify_auth()}")
     milestones = gh.fetch_milestones()
     if cfg.only is not None:
         milestones = [m for m in milestones if m.number == cfg.only]

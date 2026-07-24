@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 from .config import Config, ConfigError, load_config
 from .fetch import GitHubClient
-from .jira import JiraClient
+from .jira import JiraClient, JiraError
 from .sync import SyncResult, sync
 
 
@@ -53,7 +53,11 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 2
-    result = run(cfg)
+    try:
+        result = run(cfg)
+    except JiraError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 1
     return result.exit_code
 
 

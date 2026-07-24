@@ -139,6 +139,9 @@ class FakeJira:
         self.updated: list[tuple[str, dict]] = []
         self.transitioned: list[tuple[str, str]] = []
 
+    def verify_auth(self) -> str:
+        return "test@example.com"
+
     def find_epics_by_label(self, project_key: str, label: str) -> list[Epic]:
         return self._epics.get(label, [])
 

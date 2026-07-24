@@ -92,6 +92,26 @@ class JiraClient:
 
     # --- reads ----------------------------------------------------------------
 
+    def verify_auth(self) -> str:
+        """Fail fast with an actionable message if the credentials don't authenticate.
+
+        ``search/jql`` returns an empty list for an unauthenticated caller rather
+        than 401, which otherwise surfaces later as a confusing "cannot create"
+        error. Checking ``/myself`` up front turns that into a clear auth error.
+        """
+        resp = self._client.get("/rest/api/3/myself")
+        if resp.status_code in (401, 403):
+            raise JiraError(
+                f"Jira authentication failed ({resp.status_code}). Check jira-email "
+                "and jira-api-token. Note: scoped API tokens (prefix 'ATATT', created "
+                "'with scopes') do NOT work here - create a classic API token at "
+                "https://id.atlassian.com/manage-profile/security/api-tokens."
+            )
+        _raise_for_jira(resp)
+        data = resp.json()
+        who = data.get("emailAddress") or data.get("displayName") or data.get("accountId")
+        return str(who or "?")
+
     def find_epics_by_label(self, project_key: str, label: str) -> list[Epic]:
         """Return every epic in the project carrying ``label`` (0, 1, or >1)."""
         jql = f'project = "{project_key}" AND labels = "{label}"'
