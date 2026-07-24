@@ -115,12 +115,15 @@ Run the exact same code path locally for quick iteration:
 
 ```bash
 cp .env.example .env          # then fill in your Jira + GitHub values
-uv run --env-file .env python -m gh_jira_sync --dry-run --verbose
+uv run --env-file .env python -m gh_jira_sync --dry-run --verbose   # preview
+uv run --env-file .env python -m gh_jira_sync --only 3 --write      # one live create
 ```
 
 `.env` is gitignored. Inputs are read from `INPUT_*` env vars (the GitHub
-Action convention); `--only N`, `--dry-run` and `--verbose` mirror the action
-inputs and override the env values.
+Action convention). Flags override the env either way: `--dry-run` /
+`--no-dry-run` (alias `--write`), `--only N`, `--verbose`. Scope a first live
+run with `--only <existing-milestone-number>` to keep the blast radius to one
+epic.
 
 ## Dry run
 

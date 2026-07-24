@@ -98,6 +98,8 @@ def load_config(argv: list[str] | None = None) -> Config:
         arg = argv[i]
         if arg == "--dry-run":
             dry_run = True
+        elif arg in ("--no-dry-run", "--write"):
+            dry_run = False
         elif arg == "--verbose":
             verbose = True
         elif arg == "--only":

@@ -58,6 +58,13 @@ def test_cli_flags_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.only == 5
 
 
+def test_no_dry_run_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_DRY_RUN="true")
+    assert load_config([]).dry_run is True
+    assert load_config(["--no-dry-run"]).dry_run is False
+    assert load_config(["--write"]).dry_run is False
+
+
 def test_only_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env(monkeypatch, INPUT_ONLY="3")
     assert load_config([]).only == 3
