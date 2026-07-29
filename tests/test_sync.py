@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
 
 from conftest import make_issue, make_milestone
 
@@ -21,6 +22,7 @@ def _cfg(**kw: object) -> Config:
         "jira_project_key": "RD",
         "jira_epic_issue_type_id": "11087",
         "jira_extra_labels": ["mc-assistant"],
+        "default_due_in_days": None,
         "github_token": "gh",
         "github_repository": "malparty/demo",
         "only": None,
@@ -159,9 +161,12 @@ class FakeJira:
         self.transitioned.append((key, transition_id))
 
 
+_TODAY = date(2026, 7, 29)
+
+
 def _run(cfg: Config, gh: FakeGitHub, jira: FakeJira):
     logs: list[str] = []
-    result = sync(cfg, gh, jira, logs.append)  # type: ignore[arg-type]
+    result = sync(cfg, gh, jira, logs.append, today=_TODAY)  # type: ignore[arg-type]
     return result, logs
 
 
@@ -227,6 +232,56 @@ def test_dry_run_writes_nothing() -> None:
     assert result.created == 1
     assert jira.created == []
     assert any("would CREATE" in line for line in logs)
+
+
+# --- default due date (create-only fallback) ----------------------------------
+
+
+def test_create_uses_default_due_when_milestone_has_none() -> None:
+    cfg = _cfg(default_due_in_days=30)
+    m = make_milestone(number=2, description=None, due_on=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _run(cfg, gh, jira)
+    assert jira.created[0]["duedate"] == "2026-08-28"  # 2026-07-29 + 30d
+
+
+def test_create_prefers_github_due_over_default() -> None:
+    cfg = _cfg(default_due_in_days=30)
+    m = make_milestone(number=2, description=None, due_on="2026-09-01T00:00:00Z")
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _run(cfg, gh, jira)
+    assert jira.created[0]["duedate"] == "2026-09-01"
+
+
+def test_create_omits_due_when_default_disabled() -> None:
+    cfg = _cfg(default_due_in_days=None)
+    m = make_milestone(number=2, description=None, due_on=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _run(cfg, gh, jira)
+    assert jira.created[0]["duedate"] is None
+
+
+def test_default_due_not_applied_on_update() -> None:
+    """An existing epic is never given (or re-dated with) the fallback."""
+    cfg = _cfg(default_due_in_days=30)
+    m = make_milestone(number=1, description=None, due_on=None)
+    epic = _epic_for(m, cfg, duedate=None)
+    gh = FakeGitHub([m], {1: []})
+    jira = FakeJira({"gh-ms-1": [epic]})
+    result, _ = _run(cfg, gh, jira)
+    assert (result.unchanged, jira.updated) == (1, [])
+
+
+def test_dry_run_reports_default_due_origin() -> None:
+    cfg = _cfg(default_due_in_days=30, dry_run=True)
+    m = make_milestone(number=2, description=None, due_on=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _, logs = _run(cfg, gh, jira)
+    assert any("duedate=2026-08-28 (default +30d)" in line for line in logs)
 
 
 def test_only_filters_milestones() -> None:

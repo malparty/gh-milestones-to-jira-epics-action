@@ -40,6 +40,7 @@ jobs:
           jira-project-key: RD
           jira-epic-issue-type-id: "11087"
           jira-extra-labels: my-project,github-auto-sync
+          default-due-in-days: "30"                    # fallback due date, on create only
           only: ${{ github.event.milestone.number }}   # empty on cron ⇒ full pass
 ```
 
@@ -56,6 +57,7 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 | `jira-project-key` | ✓ | — | Target project key, e.g. `RD`. |
 | `jira-epic-issue-type-id` | ✓ | — | Epic issue-type id for the project (instance-specific — see below). |
 | `jira-extra-labels` | — | `""` | Comma-separated labels merged onto every epic (trimmed, deduped). No spaces. |
+| `default-due-in-days` | — | `""` (off) | Fallback due date for a milestone with no due date: run date + N days, **on create only**. A GitHub due date always wins. |
 | `github-token` | — | `${{ github.token }}` | Token used to read milestones/issues. |
 | `only` | — | — | Sync a single milestone by `number` (used on the milestone-event path). |
 | `dry-run` | — | `false` | Print intended create/update/transition actions without writing. |
@@ -76,7 +78,12 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 - **Labels** — `gh-ms-<number>` plus any `jira-extra-labels`. On update the label
   set is treated as a **superset**: missing labels are added, existing ones are
   never pruned (so labels a human added in Jira survive).
-- **Due date** — set only when the milestone has one; never cleared afterwards.
+- **Due date** — the milestone's due date when it has one; never cleared afterwards.
+  With `default-due-in-days: 30`, a milestone with **no** due date gets
+  `run date + 30 days` **at creation time only** — so the epic starts with a
+  plausible date you can then adjust in Jira, and later runs never touch it. Add
+  a due date on the milestone afterwards and it overwrites the fallback (GitHub
+  always wins). Leave the input empty to omit the field entirely, as before.
 - **Start date** — never written (set it manually in Jira; it always survives).
 - **Description** — an [ADF](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/)
   document: an italic "do not edit" notice, a `closed/total issues closed`
@@ -124,7 +131,8 @@ uv run --env-file .env python -m gh_jira_sync --only 3 --write      # one live c
 
 `.env` is gitignored. Inputs are read from `INPUT_*` env vars (the GitHub
 Action convention). Flags override the env either way: `--dry-run` /
-`--no-dry-run` (alias `--write`), `--only N`, `--verbose`. Scope a first live
+`--no-dry-run` (alias `--write`), `--only N`, `--verbose`,
+`--default-due-in-days N`. Scope a first live
 run with `--only <existing-milestone-number>` to keep the blast radius to one
 epic.
 

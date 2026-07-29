@@ -21,6 +21,22 @@ def _bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def parse_default_due_in_days(raw: str) -> int | None:
+    """Parse the ``default-due-in-days`` input; empty means "no fallback"."""
+    if not raw:
+        return None
+    try:
+        days = int(raw)
+    except ValueError as exc:
+        raise ConfigError(
+            "default-due-in-days must be a whole number of days "
+            f"(or empty to disable), got {raw!r}"
+        ) from exc
+    if days < 0:
+        raise ConfigError(f"default-due-in-days must not be negative, got {days}")
+    return days
+
+
 def parse_extra_labels(raw: str) -> list[str]:
     """Parse the comma-separated ``jira-extra-labels`` input.
 
@@ -54,6 +70,7 @@ class Config:
     jira_project_key: str
     jira_epic_issue_type_id: str
     jira_extra_labels: list[str]
+    default_due_in_days: int | None  # fallback due date on create; None disables it
     github_token: str
     github_repository: str  # "owner/repo"
     only: int | None
@@ -73,7 +90,8 @@ def load_config(argv: list[str] | None = None) -> Config:
     """Build a :class:`Config` from ``INPUT_*`` env vars, with CLI flag overrides.
 
     Flags mirror the action inputs so the same code path runs in CI, in the
-    action, and locally: ``--only N``, ``--dry-run``, ``--verbose``.
+    action, and locally: ``--only N``, ``--dry-run``, ``--verbose``,
+    ``--default-due-in-days N``.
     """
     argv = argv if argv is not None else []
 
@@ -83,6 +101,7 @@ def load_config(argv: list[str] | None = None) -> Config:
     project_key = _env("INPUT_JIRA_PROJECT_KEY")
     epic_type_id = _env("INPUT_JIRA_EPIC_ISSUE_TYPE_ID")
     extra_labels = parse_extra_labels(_env("INPUT_JIRA_EXTRA_LABELS"))
+    default_due_in_days = parse_default_due_in_days(_env("INPUT_DEFAULT_DUE_IN_DAYS"))
 
     github_token = _env("INPUT_GITHUB_TOKEN") or _env("GITHUB_TOKEN")
     github_repository = _env("INPUT_GITHUB_REPOSITORY") or _env("GITHUB_REPOSITORY")
@@ -109,6 +128,13 @@ def load_config(argv: list[str] | None = None) -> Config:
             only_cli = argv[i]
         elif arg.startswith("--only="):
             only_cli = arg.split("=", 1)[1]
+        elif arg == "--default-due-in-days":
+            i += 1
+            if i >= len(argv):
+                raise ConfigError("--default-due-in-days requires a number of days")
+            default_due_in_days = parse_default_due_in_days(argv[i].strip())
+        elif arg.startswith("--default-due-in-days="):
+            default_due_in_days = parse_default_due_in_days(arg.split("=", 1)[1].strip())
         else:
             raise ConfigError(f"Unknown flag: {arg}")
         i += 1
@@ -154,6 +180,7 @@ def load_config(argv: list[str] | None = None) -> Config:
         jira_project_key=project_key,
         jira_epic_issue_type_id=epic_type_id,
         jira_extra_labels=extra_labels,
+        default_due_in_days=default_due_in_days,
         github_token=github_token,
         github_repository=github_repository,
         only=only,

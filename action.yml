@@ -25,6 +25,14 @@ inputs:
     description: Comma-separated labels merged onto every epic (trimmed, deduped, no spaces).
     required: false
     default: ""
+  default-due-in-days:
+    description: >-
+      Fallback due date for milestones without one, as a number of days from the
+      run date (e.g. 30 ⇒ today + 30 days). Applied only when the epic is created;
+      a GitHub due date always wins and existing due dates are never rewritten.
+      Empty disables the fallback.
+    required: false
+    default: ""
   github-token:
     description: Token used to read milestones and issues.
     required: false
@@ -72,6 +80,7 @@ runs:
         INPUT_JIRA_PROJECT_KEY: ${{ inputs.jira-project-key }}
         INPUT_JIRA_EPIC_ISSUE_TYPE_ID: ${{ inputs.jira-epic-issue-type-id }}
         INPUT_JIRA_EXTRA_LABELS: ${{ inputs.jira-extra-labels }}
+        INPUT_DEFAULT_DUE_IN_DAYS: ${{ inputs.default-due-in-days }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
         INPUT_ONLY: ${{ inputs.only }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}

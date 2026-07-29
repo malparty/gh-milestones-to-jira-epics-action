@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from typing import Any
 
 from . import render
@@ -89,6 +90,7 @@ def _sync_one(
     jira: JiraClient,
     result: SyncResult,
     log: Logger,
+    today: date,
 ) -> None:
     issues = gh.fetch_issues(milestone.number)
     summary = render.render_summary(milestone)
@@ -111,10 +113,18 @@ def _sync_one(
         return
 
     if not epics:
+        # Creation only: a milestone with no due date gets the configured fallback
+        # (§2.7 — later runs never write or rewrite a due date from the fallback).
+        create_duedate = duedate
+        origin = ""
+        if create_duedate is None:
+            create_duedate = render.fallback_due_date(cfg.default_due_in_days, today)
+            if create_duedate is not None:
+                origin = f" (default +{cfg.default_due_in_days}d)"
         if cfg.dry_run:
             log(
                 f"[dry-run] would CREATE epic for milestone #{milestone.number} "
-                f"{summary!r} labels={labels} duedate={duedate}"
+                f"{summary!r} labels={labels} duedate={create_duedate}{origin}"
             )
         else:
             key = jira.create_epic(
@@ -123,9 +133,12 @@ def _sync_one(
                 summary=summary,
                 description=description,
                 labels=labels,
-                duedate=duedate,
+                duedate=create_duedate,
             )
-            log(f"created {key} for milestone #{milestone.number} {summary!r}")
+            log(
+                f"created {key} for milestone #{milestone.number} {summary!r}"
+                + (f" duedate={create_duedate}{origin}" if origin else "")
+            )
             if milestone.state == "closed":
                 _apply_status(jira, key, milestone.state, "new", cfg, log)
         result.created += 1
@@ -188,9 +201,20 @@ def _apply_status(
         log(f"transitioned {key} → {transition.name} ({transition.to_category})")
 
 
-def sync(cfg: Config, gh: GitHubClient, jira: JiraClient, log: Logger) -> SyncResult:
-    """Run the full upsert pass and return counts (§7)."""
+def sync(
+    cfg: Config,
+    gh: GitHubClient,
+    jira: JiraClient,
+    log: Logger,
+    today: date | None = None,
+) -> SyncResult:
+    """Run the full upsert pass and return counts (§7).
+
+    ``today`` (UTC date, read once so every milestone in a pass shares it) anchors
+    the ``default-due-in-days`` fallback; injectable for deterministic tests.
+    """
     result = SyncResult()
+    today = today if today is not None else datetime.now(UTC).date()
     log(f"authenticated to Jira as {jira.verify_auth()}")
     milestones = gh.fetch_milestones()
     if cfg.only is not None:
@@ -200,7 +224,7 @@ def sync(cfg: Config, gh: GitHubClient, jira: JiraClient, log: Logger) -> SyncRe
 
     for milestone in milestones:
         try:
-            _sync_one(milestone, cfg, gh, jira, result, log)
+            _sync_one(milestone, cfg, gh, jira, result, log, today)
         except Exception as exc:  # continue other milestones (§10)
             msg = f"milestone #{milestone.number} {milestone.title!r} failed: {exc}"
             log(f"ERROR {msg}")

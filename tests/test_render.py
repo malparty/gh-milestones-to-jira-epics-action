@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import date
 from pathlib import Path
 
 from conftest import make_issue, make_milestone
@@ -40,6 +41,18 @@ def test_due_date_takes_date_part() -> None:
 
 def test_due_date_none_when_absent() -> None:
     assert render.render_due_date(make_milestone(due_on=None)) is None
+
+
+def test_fallback_due_date_adds_days() -> None:
+    assert render.fallback_due_date(30, date(2026, 7, 29)) == "2026-08-28"
+
+
+def test_fallback_due_date_zero_days_is_today() -> None:
+    assert render.fallback_due_date(0, date(2026, 7, 29)) == "2026-07-29"
+
+
+def test_fallback_due_date_none_when_disabled() -> None:
+    assert render.fallback_due_date(None, date(2026, 7, 29)) is None
 
 
 def test_description_golden_full() -> None:

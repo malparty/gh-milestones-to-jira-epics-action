@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from gh_jira_sync.config import ConfigError, load_config, parse_extra_labels
+from gh_jira_sync.config import (
+    ConfigError,
+    load_config,
+    parse_default_due_in_days,
+    parse_extra_labels,
+)
 
 _REQUIRED = {
     "INPUT_JIRA_BASE_URL": "https://x.atlassian.net/",
@@ -31,6 +36,30 @@ def test_parse_extra_labels_trims_and_dedupes() -> None:
 def test_parse_extra_labels_rejects_spaces() -> None:
     with pytest.raises(ConfigError):
         parse_extra_labels("has space")
+
+
+def test_parse_default_due_in_days() -> None:
+    assert parse_default_due_in_days("") is None
+    assert parse_default_due_in_days("30") == 30
+    assert parse_default_due_in_days("0") == 0
+
+
+@pytest.mark.parametrize("raw", ["-1", "abc", "30.5"])
+def test_parse_default_due_in_days_rejects_invalid(raw: str) -> None:
+    with pytest.raises(ConfigError, match="default-due-in-days"):
+        parse_default_due_in_days(raw)
+
+
+def test_default_due_in_days_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_DEFAULT_DUE_IN_DAYS="30")
+    assert load_config([]).default_due_in_days == 30
+
+
+def test_default_due_in_days_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_DEFAULT_DUE_IN_DAYS="30")
+    assert load_config(["--default-due-in-days", "7"]).default_due_in_days == 7
+    assert load_config(["--default-due-in-days=14"]).default_due_in_days == 14
+    assert load_config(["--default-due-in-days="]).default_due_in_days is None
 
 
 def test_load_config_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:

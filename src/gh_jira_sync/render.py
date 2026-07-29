@@ -7,6 +7,7 @@ golden-file tested against fixtures.
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 from typing import Any
 
 from .models import Issue, Milestone
@@ -39,6 +40,19 @@ def render_labels(number: int, extra_labels: list[str]) -> list[str]:
 def render_due_date(milestone: Milestone) -> str | None:
     """``YYYY-MM-DD`` if the milestone has a due date, else ``None`` (omit the key)."""
     return milestone.due_date
+
+
+def fallback_due_date(days: int | None, today: date) -> str | None:
+    """``today + days`` as ``YYYY-MM-DD``, or ``None`` when the fallback is disabled.
+
+    Used only when creating an epic for a milestone with no due date: the GitHub
+    value always wins, and an existing epic's due date is never rewritten (§2.7).
+    ``today`` is passed in (the caller uses the UTC date, matching how ``due_on``
+    timestamps are truncated) so rendering stays deterministic.
+    """
+    if days is None:
+        return None
+    return (today + timedelta(days=days)).isoformat()
 
 
 # --- tiny ADF builder ---------------------------------------------------------
