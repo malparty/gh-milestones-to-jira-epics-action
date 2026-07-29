@@ -16,6 +16,10 @@ on:
         description: Run without writing to Jira
         type: boolean
         default: true
+      default-due-in-days:
+        description: Fallback due date on create (days from now). Empty = no fallback.
+        type: string
+        default: ""
 
 permissions:
   issues: read
@@ -25,7 +29,7 @@ jobs:
   selftest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: sync
         uses: ./
         with:
@@ -35,6 +39,7 @@ jobs:
           jira-project-key: ${{ vars.JIRA_PROJECT_KEY }}
           jira-epic-issue-type-id: ${{ vars.JIRA_EPIC_ISSUE_TYPE_ID }}
           jira-extra-labels: ${{ vars.JIRA_EXTRA_LABELS }}
+          default-due-in-days: ${{ inputs.default-due-in-days }}
           dry-run: ${{ inputs.dry-run }}
           verbose: "true"
       - name: Summary
