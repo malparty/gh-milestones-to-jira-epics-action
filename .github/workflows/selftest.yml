@@ -1,7 +1,8 @@
 name: Self-test (dogfood)
 
 # Runs this action against its own repository's milestones in dry-run mode,
-# proving the composite action wires up end-to-end. Manual only.
+# proving the composite action wires up end-to-end. Manual only. Defaults to
+# stories mode (a story per milestone under RD-16) with the due-date fallback on.
 #
 # Requires, on this repo (Settings → Secrets and variables → Actions):
 #   Secrets:   JIRA_EMAIL, JIRA_API_TOKEN
@@ -19,7 +20,13 @@ on:
       default-due-in-days:
         description: Fallback due date on create (days from now). Empty = no fallback.
         type: string
-        default: ""
+        default: "30"
+      stories-inside-epic-id:
+        description: >-
+          Create stories under this epic instead of one epic per milestone.
+          Clear it to dogfood epic mode.
+        type: string
+        default: RD-16
 
 permissions:
   issues: read
@@ -38,6 +45,7 @@ jobs:
           jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
           jira-project-key: ${{ vars.JIRA_PROJECT_KEY }}
           jira-epic-issue-type-id: ${{ vars.JIRA_EPIC_ISSUE_TYPE_ID }}
+          stories-inside-epic-id: ${{ inputs.stories-inside-epic-id }}
           jira-extra-labels: ${{ vars.JIRA_EXTRA_LABELS }}
           default-due-in-days: ${{ inputs.default-due-in-days }}
           dry-run: ${{ inputs.dry-run }}

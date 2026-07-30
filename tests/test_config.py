@@ -9,6 +9,7 @@ from gh_jira_sync.config import (
     load_config,
     parse_default_due_in_days,
     parse_extra_labels,
+    parse_stories_inside_epic_id,
 )
 
 _REQUIRED = {
@@ -22,8 +23,21 @@ _REQUIRED = {
 }
 
 
+_OPTIONAL = [
+    "INPUT_JIRA_EXTRA_LABELS",
+    "INPUT_DEFAULT_DUE_IN_DAYS",
+    "INPUT_STORIES_INSIDE_EPIC_ID",
+    "INPUT_JIRA_STORY_ISSUE_TYPE_ID",
+    "INPUT_ONLY",
+    "INPUT_DRY_RUN",
+    "INPUT_VERBOSE",
+]
+
+
 def _set_env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> None:
-    for key in list(overrides) + list(_REQUIRED):
+    # Optional inputs are cleared too, so an ambient INPUT_* in the dev's shell
+    # (or a .env-driven run) can't change what a test is asserting.
+    for key in list(overrides) + list(_REQUIRED) + _OPTIONAL:
         monkeypatch.delenv(key, raising=False)
     for key, value in {**_REQUIRED, **overrides}.items():
         monkeypatch.setenv(key, value)
@@ -97,6 +111,60 @@ def test_no_dry_run_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_only_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env(monkeypatch, INPUT_ONLY="3")
     assert load_config([]).only == 3
+
+
+def test_parse_stories_inside_epic_id_accepts_key_number_and_url() -> None:
+    assert parse_stories_inside_epic_id("", "RD") is None
+    assert parse_stories_inside_epic_id("RD-16", "RD") == "RD-16"
+    assert parse_stories_inside_epic_id(" rd-16 ", "rd") == "RD-16"
+    assert parse_stories_inside_epic_id("16", "RD") == "RD-16"
+    assert (
+        parse_stories_inside_epic_id(
+            "https://rivrs.atlassian.net/jira/software/projects/RD/boards/847/"
+            "timeline?selectedIssue=RD-16",
+            "RD",
+        )
+        == "RD-16"
+    )
+
+
+def test_parse_stories_inside_epic_id_rejects_other_project() -> None:
+    with pytest.raises(ConfigError, match="same project"):
+        parse_stories_inside_epic_id("XY-16", "RD")
+
+
+def test_parse_stories_inside_epic_id_rejects_garbage() -> None:
+    with pytest.raises(ConfigError, match="stories-inside-epic-id"):
+        parse_stories_inside_epic_id("epic sixteen", "RD")
+
+
+def test_stories_mode_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_STORIES_INSIDE_EPIC_ID="16")
+    cfg = load_config([])
+    assert (cfg.stories_inside_epic, cfg.stories_mode) == ("RD-16", True)
+    assert cfg.jira_story_issue_type_id == ""  # resolved at run time
+
+
+def test_stories_mode_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_STORIES_INSIDE_EPIC_ID="16")
+    assert load_config(["--stories-inside-epic-id", "RD-20"]).stories_inside_epic == "RD-20"
+    assert load_config(["--stories-inside-epic-id=RD-21"]).stories_inside_epic == "RD-21"
+    assert load_config(["--stories-inside-epic-id="]).stories_inside_epic is None
+
+
+def test_epic_type_id_required_only_in_epic_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch)
+    monkeypatch.delenv("INPUT_JIRA_EPIC_ISSUE_TYPE_ID", raising=False)
+    with pytest.raises(ConfigError, match="jira-epic-issue-type-id"):
+        load_config([])
+    monkeypatch.setenv("INPUT_STORIES_INSIDE_EPIC_ID", "RD-16")
+    assert load_config([]).stories_mode is True
+
+
+def test_default_epic_mode_has_no_parent(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch)
+    cfg = load_config([])
+    assert (cfg.stories_inside_epic, cfg.stories_mode) == (None, False)
 
 
 def test_bad_repo_raises(monkeypatch: pytest.MonkeyPatch) -> None:

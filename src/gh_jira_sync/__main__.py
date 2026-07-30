@@ -12,6 +12,19 @@ from .jira import JiraClient, JiraError
 from .sync import SyncResult, sync
 
 
+def _configure_stdio() -> None:
+    """Force UTF-8 output so exotic milestone titles never crash a run.
+
+    Runners are UTF-8, but a local Windows console defaults to cp1252 and a title
+    containing e.g. ``↔`` would otherwise raise ``UnicodeEncodeError`` mid-log and
+    fail that milestone.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def _make_logger(verbose: bool) -> Callable[[str], None]:
     def log(message: str) -> None:
         if message.startswith("ERROR "):
@@ -48,6 +61,7 @@ def run(cfg: Config) -> SyncResult:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    _configure_stdio()
     try:
         cfg = load_config(argv)
     except ConfigError as exc:

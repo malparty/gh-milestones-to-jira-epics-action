@@ -19,8 +19,24 @@ inputs:
     description: Target Jira project key, e.g. RD.
     required: true
   jira-epic-issue-type-id:
-    description: Epic issue-type id for the project (instance-specific).
-    required: true
+    description: >-
+      Epic issue-type id for the project (instance-specific). Required unless
+      stories-inside-epic-id is set, in which case it is unused.
+    required: false
+    default: ""
+  stories-inside-epic-id:
+    description: >-
+      Mirror each milestone as a Story parented to this epic instead of creating
+      one epic per milestone. Accepts an issue key (RD-16), a bare number in the
+      target project (16), or a Jira issue URL. Empty ⇒ epic mode.
+    required: false
+    default: ""
+  jira-story-issue-type-id:
+    description: >-
+      Story issue-type id, used only in stories mode. Empty ⇒ resolved from the
+      project's "Story" issue type at run time.
+    required: false
+    default: ""
   jira-extra-labels:
     description: Comma-separated labels merged onto every epic (trimmed, deduped, no spaces).
     required: false
@@ -52,16 +68,16 @@ inputs:
 
 outputs:
   created:
-    description: Count of epics created.
+    description: Count of issues created (epics, or stories in stories mode).
     value: ${{ steps.sync.outputs.created }}
   updated:
-    description: Count of epics updated.
+    description: Count of issues updated.
     value: ${{ steps.sync.outputs.updated }}
   unchanged:
     description: Count of no-op milestones.
     value: ${{ steps.sync.outputs.unchanged }}
   skipped:
-    description: Count skipped (e.g. more than one epic per label).
+    description: Count skipped (e.g. more than one issue per label).
     value: ${{ steps.sync.outputs.skipped }}
 
 runs:
@@ -81,6 +97,8 @@ runs:
         INPUT_JIRA_API_TOKEN: ${{ inputs.jira-api-token }}
         INPUT_JIRA_PROJECT_KEY: ${{ inputs.jira-project-key }}
         INPUT_JIRA_EPIC_ISSUE_TYPE_ID: ${{ inputs.jira-epic-issue-type-id }}
+        INPUT_STORIES_INSIDE_EPIC_ID: ${{ inputs.stories-inside-epic-id }}
+        INPUT_JIRA_STORY_ISSUE_TYPE_ID: ${{ inputs.jira-story-issue-type-id }}
         INPUT_JIRA_EXTRA_LABELS: ${{ inputs.jira-extra-labels }}
         INPUT_DEFAULT_DUE_IN_DAYS: ${{ inputs.default-due-in-days }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}

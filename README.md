@@ -7,10 +7,13 @@ open/closed status are kept in sync. Jira is treated as a read-only mirror:
 the action never clobbers manual edits it isn't responsible for.
 
 - **Direction:** GitHub → Jira only.
-- **Matching:** each epic is tagged with a structural label `gh-ms-<number>`
+- **Matching:** each issue is tagged with a structural label `gh-ms-<number>`
   (the milestone number). Lookups use an exact JQL match on that label, so the
   link survives title edits.
 - **Idempotent:** a run with no GitHub change performs no writes.
+- **Two shapes:** one **epic** per milestone (default), or — with
+  [`stories-inside-epic-id`](#stories-under-one-epic) — one **story** per
+  milestone, all parented to a single epic you already have.
 
 ## Quick start
 
@@ -55,22 +58,53 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 | `jira-email` | ✓ | — | Account email for the API token (**store as a secret**). |
 | `jira-api-token` | ✓ | — | Jira Cloud API token (**store as a secret**). |
 | `jira-project-key` | ✓ | — | Target project key, e.g. `RD`. |
-| `jira-epic-issue-type-id` | ✓ | — | Epic issue-type id for the project (instance-specific — see below). |
-| `jira-extra-labels` | — | `""` | Comma-separated labels merged onto every epic (trimmed, deduped). No spaces. |
+| `jira-epic-issue-type-id` | ✓ᵈ | — | Epic issue-type id for the project (instance-specific — see below). Not needed in stories mode. |
+| `stories-inside-epic-id` | — | `""` (off) | Create a **story per milestone** parented to this epic instead of an epic per milestone. Accepts `RD-16`, a bare `16`, or a Jira issue URL. |
+| `jira-story-issue-type-id` | — | `""` (auto) | Story issue-type id, stories mode only. Empty ⇒ resolved from the project's `Story` type at run time. |
+| `jira-extra-labels` | — | `""` | Comma-separated labels merged onto every issue (trimmed, deduped). No spaces. |
 | `default-due-in-days` | — | `""` (off) | Fallback due date for a milestone with no due date: run date + N days, **on create only**. A GitHub due date always wins. |
 | `github-token` | — | `${{ github.token }}` | Token used to read milestones/issues. |
 | `only` | — | — | Sync a single milestone by `number` (used on the milestone-event path). |
 | `dry-run` | — | `false` | Print intended create/update/transition actions without writing. |
 | `verbose` | — | `false` | Log unchanged milestones too. |
 
+ᵈ Required unless `stories-inside-epic-id` is set.
+
 ## Outputs
 
 | Output | Description |
 |---|---|
-| `created` | Count of epics created. |
-| `updated` | Count of epics updated. |
+| `created` | Count of issues created (epics, or stories in stories mode). |
+| `updated` | Count of issues updated. |
 | `unchanged` | Count of no-op milestones. |
-| `skipped` | Count skipped (e.g. more than one epic per label). |
+| `skipped` | Count skipped (e.g. more than one issue per label). |
+
+## Stories under one epic
+
+Sometimes a repo isn't worth an epic per milestone — you want one epic for the
+whole effort and a story per milestone underneath it. Point
+`stories-inside-epic-id` at that epic:
+
+```yaml
+with:
+  jira-project-key: RD
+  stories-inside-epic-id: RD-16          # or "16", or the Jira URL you copied
+  default-due-in-days: "30"
+  # jira-epic-issue-type-id not needed here
+  # jira-story-issue-type-id: "11089"    # optional; auto-resolved from the project
+```
+
+- The **parent epic must already exist** in `jira-project-key` — the action never
+  creates it. Its key and type are read (and reported) before the first
+  milestone, so a typo fails immediately, even in `--dry-run`.
+- Everything else is identical to epic mode: same `gh-ms-<number>` label, same
+  description rollup, due dates, label merge and status transitions.
+- The label lookup is **scoped to the issue type**, so the two modes stay
+  independently idempotent: switching a repo from epic mode to stories mode
+  creates the stories and leaves the epics an earlier run made untouched (delete
+  those yourself if you don't want both).
+- **Parent is set at creation only.** Re-parenting an existing story, or moving a
+  repo back and forth between modes, is a manual Jira operation on purpose.
 
 ## What gets written
 
@@ -109,15 +143,17 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 ## Finding instance-specific ids
 
 Standard field keys (`summary`, `description`, `duedate`, `labels`, `reporter`)
-are identical across Cloud instances. Only the **epic issue-type id** is
-instance-specific. Discover it with:
+are identical across Cloud instances. Only the **issue-type ids** are
+instance-specific. Discover them with:
 
 ```bash
 curl -su "$EMAIL:$TOKEN" \
   "https://your-org.atlassian.net/rest/api/3/project/RD" | jq '.issueTypes[]|{id,name}'
 ```
 
-Pick the id whose `name` is `Epic`.
+Pick the id whose `name` is `Epic`. In stories mode the `Story` id is looked up
+from this same endpoint automatically — set `jira-story-issue-type-id` only if
+your project's story-level type is named something else.
 
 ## Local testing
 
@@ -132,7 +168,8 @@ uv run --env-file .env python -m gh_jira_sync --only 3 --write      # one live c
 `.env` is gitignored. Inputs are read from `INPUT_*` env vars (the GitHub
 Action convention). Flags override the env either way: `--dry-run` /
 `--no-dry-run` (alias `--write`), `--only N`, `--verbose`,
-`--default-due-in-days N`. Scope a first live
+`--default-due-in-days N`, `--stories-inside-epic-id KEY` (empty value forces
+epic mode). Scope a first live
 run with `--only <existing-milestone-number>` to keep the blast radius to one
 epic.
 

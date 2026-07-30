@@ -40,8 +40,8 @@ def _raise_for_jira(resp: httpx.Response) -> None:
 
 
 @dataclass(frozen=True)
-class Epic:
-    """The slice of an epic we read back for diffing/reconciliation."""
+class JiraIssue:
+    """The slice of a synced issue (epic or story) we read back for diffing."""
 
     key: str
     summary: str
@@ -112,9 +112,62 @@ class JiraClient:
         who = data.get("emailAddress") or data.get("displayName") or data.get("accountId")
         return str(who or "?")
 
-    def find_epics_by_label(self, project_key: str, label: str) -> list[Epic]:
-        """Return every epic in the project carrying ``label`` (0, 1, or >1)."""
-        jql = f'project = "{project_key}" AND labels = "{label}"'
+    def resolve_issue_type_id(self, project_key: str, type_name: str) -> str:
+        """Look up an issue-type id by name within a project.
+
+        Lets the action work from a type *name* (``Story``) instead of an
+        instance-specific id. Matches the untranslated name too, so a
+        localised project (``Tâche``) still resolves ``Story``.
+        """
+        resp = self._client.get(f"/rest/api/3/project/{project_key}")
+        _raise_for_jira(resp)
+        types = resp.json().get("issueTypes", [])
+        wanted = type_name.casefold()
+        for issue_type in types:
+            if issue_type.get("subtask"):
+                continue
+            names = {
+                str(issue_type.get(field, "")).casefold()
+                for field in ("untranslatedName", "name")
+            }
+            if wanted in names:
+                return str(issue_type["id"])
+        available = ", ".join(
+            f"{t.get('name')} ({t.get('id')})" for t in types if not t.get("subtask")
+        )
+        raise JiraError(
+            f"No {type_name!r} issue type in project {project_key}. Available: "
+            f"{available or 'none'}. Set jira-story-issue-type-id explicitly."
+        )
+
+    def describe_issue(self, key: str) -> str:
+        """Human-readable ``KEY 'summary' (Type)``; raises if the issue is unreachable."""
+        resp = self._client.get(
+            f"/rest/api/3/issue/{key}", params={"fields": "summary,issuetype"}
+        )
+        if resp.status_code == 404:
+            raise JiraError(
+                f"Jira issue {key} does not exist or is not visible to this account "
+                "(stories-inside-epic-id)."
+            )
+        _raise_for_jira(resp)
+        fields = resp.json().get("fields", {})
+        type_name = (fields.get("issuetype") or {}).get("name", "?")
+        return f"{key} {fields.get('summary', '')!r} ({type_name})"
+
+    def find_issues_by_label(
+        self, project_key: str, label: str, issue_type_id: str
+    ) -> list[JiraIssue]:
+        """Return every issue of that type in the project carrying ``label`` (0, 1, or >1).
+
+        Filtering on the issue type keeps epic mode and stories mode independently
+        idempotent: switching modes creates the story rather than mutating the epic
+        an earlier run made for the same milestone.
+        """
+        jql = (
+            f'project = "{project_key}" AND labels = "{label}" '
+            f"AND issuetype = {_jql_value(issue_type_id)}"
+        )
         resp = self._client.post(
             "/rest/api/3/search/jql",
             json={
@@ -124,7 +177,7 @@ class JiraClient:
             },
         )
         _raise_for_jira(resp)
-        return [_parse_epic(issue) for issue in resp.json().get("issues", [])]
+        return [_parse_issue(issue) for issue in resp.json().get("issues", [])]
 
     def get_transitions(self, key: str) -> list[Transition]:
         resp = self._client.get(f"/rest/api/3/issue/{key}/transitions")
@@ -138,25 +191,28 @@ class JiraClient:
 
     # --- writes ---------------------------------------------------------------
 
-    def create_epic(
+    def create_issue(
         self,
         project_key: str,
-        epic_issue_type_id: str,
+        issue_type_id: str,
         *,
         summary: str,
         description: Json,
         labels: list[str],
         duedate: str | None,
+        parent_key: str | None = None,
     ) -> str:
         fields: Json = {
             "project": {"key": project_key},
-            "issuetype": {"id": epic_issue_type_id},
+            "issuetype": {"id": issue_type_id},
             "summary": summary,
             "description": description,
             "labels": labels,
         }
         if duedate is not None:
             fields["duedate"] = duedate
+        if parent_key is not None:
+            fields["parent"] = {"key": parent_key}
         resp = self._client.post("/rest/api/3/issue", json={"fields": fields})
         _raise_for_jira(resp)
         return str(resp.json()["key"])
@@ -173,11 +229,16 @@ class JiraClient:
         _raise_for_jira(resp)
 
 
-def _parse_epic(issue: Json) -> Epic:
+def _jql_value(value: str) -> str:
+    """Render a JQL literal: numeric ids bare (id match), anything else quoted."""
+    return value if value.isdigit() else f'"{value}"'
+
+
+def _parse_issue(issue: Json) -> JiraIssue:
     fields = issue.get("fields", {})
     status = fields.get("status") or {}
     category = (status.get("statusCategory") or {}).get("key", "")
-    return Epic(
+    return JiraIssue(
         key=issue["key"],
         summary=fields.get("summary", ""),
         description=fields.get("description"),

@@ -9,7 +9,7 @@ from conftest import make_issue, make_milestone
 
 from gh_jira_sync import render
 from gh_jira_sync.config import Config
-from gh_jira_sync.jira import Epic, Transition
+from gh_jira_sync.jira import JiraIssue, Transition
 from gh_jira_sync.models import Milestone
 from gh_jira_sync.sync import compute_field_updates, plan_status_transition, sync
 
@@ -21,6 +21,8 @@ def _cfg(**kw: object) -> Config:
         "jira_api_token": "tok",
         "jira_project_key": "RD",
         "jira_epic_issue_type_id": "11087",
+        "jira_story_issue_type_id": "",
+        "stories_inside_epic": None,
         "jira_extra_labels": ["mc-assistant"],
         "default_due_in_days": None,
         "github_token": "gh",
@@ -33,11 +35,11 @@ def _cfg(**kw: object) -> Config:
     return Config(**defaults)  # type: ignore[arg-type]
 
 
-def _epic_for(milestone: Milestone, cfg: Config, **overrides: object) -> Epic:
-    """An epic whose fields already match the rendered target (a no-op baseline)."""
+def _epic_for(milestone: Milestone, cfg: Config, **overrides: object) -> JiraIssue:
+    """An issue whose fields already match the rendered target (a no-op baseline)."""
     labels = render.render_labels(milestone.number, cfg.jira_extra_labels)
     desc = render.render_description(milestone, [], cfg.owner, cfg.repo)
-    base = Epic(
+    base = JiraIssue(
         key="RD-1",
         summary=render.render_summary(milestone),
         description=desc,
@@ -134,23 +136,41 @@ class FakeGitHub:
 
 
 class FakeJira:
-    def __init__(self, epics: dict[str, list[Epic]], transitions: list[Transition] | None = None) -> None:
+    def __init__(
+        self,
+        epics: dict[str, list[JiraIssue]],
+        transitions: list[Transition] | None = None,
+    ) -> None:
         self._epics = epics
         self._transitions = transitions or _transitions()
         self.created: list[dict] = []
+        self.created_types: list[str] = []
+        self.searched_types: list[str] = []
+        self.described: list[str] = []
         self.updated: list[tuple[str, dict]] = []
         self.transitioned: list[tuple[str, str]] = []
 
     def verify_auth(self) -> str:
         return "test@example.com"
 
-    def find_epics_by_label(self, project_key: str, label: str) -> list[Epic]:
+    def resolve_issue_type_id(self, project_key: str, type_name: str) -> str:
+        return "11089"
+
+    def describe_issue(self, key: str) -> str:
+        self.described.append(key)
+        return f"{key} 'parent epic' (Epic)"
+
+    def find_issues_by_label(
+        self, project_key: str, label: str, issue_type_id: str
+    ) -> list[JiraIssue]:
+        self.searched_types.append(issue_type_id)
         return self._epics.get(label, [])
 
     def get_transitions(self, key: str) -> list[Transition]:
         return self._transitions
 
-    def create_epic(self, project_key, epic_issue_type_id, **fields) -> str:
+    def create_issue(self, project_key, issue_type_id, **fields) -> str:
+        self.created_types.append(issue_type_id)
         self.created.append(fields)
         return "RD-NEW"
 
@@ -282,6 +302,77 @@ def test_dry_run_reports_default_due_origin() -> None:
     jira = FakeJira({})
     _, logs = _run(cfg, gh, jira)
     assert any("duedate=2026-08-28 (default +30d)" in line for line in logs)
+
+
+# --- stories mode -------------------------------------------------------------
+
+
+def test_stories_mode_creates_story_under_parent() -> None:
+    cfg = _cfg(stories_inside_epic="RD-16")
+    m = make_milestone(number=2, state="open", description=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    result, logs = _run(cfg, gh, jira)
+    assert result.created == 1
+    assert jira.created[0]["parent_key"] == "RD-16"
+    assert jira.created_types == ["11089"]  # resolved "Story" type, not the epic type
+    assert jira.described == ["RD-16"]  # parent verified up front
+    assert any("created story RD-NEW" in line and "parent=RD-16" in line for line in logs)
+
+
+def test_stories_mode_honours_explicit_story_type_id() -> None:
+    cfg = _cfg(stories_inside_epic="RD-16", jira_story_issue_type_id="12345")
+    m = make_milestone(number=2, description=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _run(cfg, gh, jira)
+    assert jira.created_types == ["12345"]
+
+
+def test_stories_mode_searches_by_story_type() -> None:
+    """The label lookup is type-scoped, so an epic-mode epic isn't mistaken for the story."""
+    cfg = _cfg(stories_inside_epic="RD-16")
+    m = make_milestone(number=1, description=None)
+    gh = FakeGitHub([m], {1: []})
+    jira = FakeJira({})
+    _run(cfg, gh, jira)
+    assert jira.searched_types == ["11089"]
+
+
+def test_epic_mode_creates_epic_without_parent() -> None:
+    cfg = _cfg()
+    m = make_milestone(number=2, description=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _, logs = _run(cfg, gh, jira)
+    assert jira.created[0]["parent_key"] is None
+    assert jira.created_types == ["11087"]
+    assert jira.described == []  # no parent to verify
+    assert not any("parent=" in line for line in logs)
+
+
+def test_stories_mode_dry_run_reports_parent() -> None:
+    cfg = _cfg(stories_inside_epic="RD-16", dry_run=True, default_due_in_days=30)
+    m = make_milestone(number=2, description=None, due_on=None)
+    gh = FakeGitHub([m], {2: []})
+    jira = FakeJira({})
+    _, logs = _run(cfg, gh, jira)
+    assert jira.created == []
+    assert any(
+        "would CREATE story" in line and "parent=RD-16" in line and "2026-08-28" in line
+        for line in logs
+    )
+
+
+def test_stories_mode_updates_existing_story_without_reparenting() -> None:
+    cfg = _cfg(stories_inside_epic="RD-16")
+    m = make_milestone(number=1, description="new text")
+    story = _epic_for(make_milestone(number=1, description="old text"), cfg)
+    gh = FakeGitHub([m], {1: []})
+    jira = FakeJira({"gh-ms-1": [story]})
+    result, _ = _run(cfg, gh, jira)
+    assert result.updated == 1
+    assert "parent" not in jira.updated[0][1]
 
 
 def test_only_filters_milestones() -> None:
