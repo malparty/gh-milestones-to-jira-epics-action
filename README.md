@@ -63,6 +63,7 @@ On a `milestone` event `only:` scopes the run to the one changed milestone; on
 | `jira-story-issue-type-id` | — | `""` (auto) | Story issue-type id, stories mode only. Empty ⇒ resolved from the project's `Story` type at run time. |
 | `jira-extra-labels` | — | `""` | Comma-separated labels merged onto every issue (trimmed, deduped). No spaces. |
 | `default-due-in-days` | — | `""` (off) | Fallback due date for a milestone with no due date: run date + N days, **on create only**. A GitHub due date always wins. |
+| `github-repository` | — | `""` (current repo) | Source repo to read milestones/issues from, as `owner/repo`. See [Reading from a different repo](#reading-from-a-different-repo). |
 | `github-token` | — | `${{ github.token }}` | Token used to read milestones/issues. |
 | `only` | — | — | Sync a single milestone by `number` (used on the milestone-event path). |
 | `dry-run` | — | `false` | Print intended create/update/transition actions without writing. |
@@ -105,6 +106,33 @@ with:
   those yourself if you don't want both).
 - **Parent is set at creation only.** Re-parenting an existing story, or moving a
   repo back and forth between modes, is a manual Jira operation on purpose.
+
+## Reading from a different repo
+
+By default the action reads milestones from the repo the workflow runs in. To
+mirror milestones from a *different* repo instead — say you can't add a
+workflow to that repo, or you want one central sync job — set
+`github-repository` and give `github-token` read access there:
+
+```yaml
+with:
+  github-repository: your-org/other-repo
+  github-token: ${{ secrets.MILESTONES_PAT }}   # see note below
+  jira-base-url: https://your-org.atlassian.net
+  jira-email: ${{ secrets.JIRA_EMAIL }}
+  jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+  jira-project-key: RD
+  jira-epic-issue-type-id: "11087"
+```
+
+**A PAT is required here.** The default `github-token` (`${{ github.token }}`)
+is the auto-generated token scoped only to the repo the workflow runs in — it
+cannot read another repo's milestones or issues, even a public one. Create a
+classic or fine-grained PAT with read access to the *target* repo's issues and
+contents (a fine-grained token scoped to just that repo, with `Issues: read`
+and `Contents: read`, is enough), store it as a secret (e.g.
+`MILESTONES_PAT`) in the repo running the workflow, and pass it as
+`github-token`.
 
 ## What gets written
 

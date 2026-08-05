@@ -49,6 +49,14 @@ inputs:
       Empty disables the fallback.
     required: false
     default: ""
+  github-repository:
+    description: >-
+      Source repo to read milestones/issues from, as owner/repo. Empty ⇒ the
+      repo the workflow runs in. Pointing this at a different repo requires
+      github-token to be a PAT (or GitHub App token) with read access there —
+      the default github.token can't see other repos.
+    required: false
+    default: ""
   github-token:
     description: Token used to read milestones and issues.
     required: false
@@ -102,6 +110,7 @@ runs:
         INPUT_JIRA_EXTRA_LABELS: ${{ inputs.jira-extra-labels }}
         INPUT_DEFAULT_DUE_IN_DAYS: ${{ inputs.default-due-in-days }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_GITHUB_REPOSITORY: ${{ inputs.github-repository }}
         INPUT_ONLY: ${{ inputs.only }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
         INPUT_VERBOSE: ${{ inputs.verbose }}

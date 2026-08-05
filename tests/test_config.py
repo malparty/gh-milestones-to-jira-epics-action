@@ -28,6 +28,7 @@ _OPTIONAL = [
     "INPUT_DEFAULT_DUE_IN_DAYS",
     "INPUT_STORIES_INSIDE_EPIC_ID",
     "INPUT_JIRA_STORY_ISSUE_TYPE_ID",
+    "INPUT_GITHUB_REPOSITORY",
     "INPUT_ONLY",
     "INPUT_DRY_RUN",
     "INPUT_VERBOSE",
@@ -171,3 +172,9 @@ def test_bad_repo_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env(monkeypatch, GITHUB_REPOSITORY="noslash")
     with pytest.raises(ConfigError, match="GITHUB_REPOSITORY"):
         load_config([])
+
+
+def test_github_repository_input_overrides_ambient_repo(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_env(monkeypatch, INPUT_GITHUB_REPOSITORY="other-org/other-repo")
+    cfg = load_config([])
+    assert (cfg.owner, cfg.repo) == ("other-org", "other-repo")
