@@ -1,0 +1,58 @@
+name: Jira roadmap sync (cross-repo)
+
+# Mirrors milestones from another repo (one this repo's workflows can't be
+# added to) into Jira. Manual, plus a safety-net cron every 6h at
+# 03:00 / 09:00 / 15:00 / 21:00 UTC.
+#
+# Requires, on this repo (Settings → Secrets and variables → Actions):
+#   Secrets:   JIRA_EMAIL, JIRA_API_TOKEN, MILESTONES_REPO, MILESTONES_PAT
+#   Variables: JIRA_BASE_URL, JIRA_PROJECT_KEY, JIRA_EPIC_ISSUE_TYPE_ID
+#              (JIRA_EXTRA_LABELS, JIRA_DEFAULT_DUE_IN_DAYS,
+#              JIRA_STORIES_INSIDE_EPIC_ID optional)
+#
+# MILESTONES_REPO (owner/repo) is a secret, not a variable, because this repo
+# is public — variables are visible to anyone, secrets are masked in logs.
+# MILESTONES_PAT is a classic/fine-grained PAT with read access to that
+# repo's issues + contents; the default github.token can't see other repos.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run without writing to Jira
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 3,9,15,21 * * *" # 03:00, 09:00, 15:00, 21:00 UTC
+
+concurrency: jira-roadmap-sync # no double-writes
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: sync
+        uses: ./
+        with:
+          jira-base-url: ${{ vars.JIRA_BASE_URL }}
+          jira-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-project-key: ${{ vars.JIRA_PROJECT_KEY }}
+          jira-epic-issue-type-id: ${{ vars.JIRA_EPIC_ISSUE_TYPE_ID }}
+          stories-inside-epic-id: ${{ vars.JIRA_STORIES_INSIDE_EPIC_ID }}
+          jira-extra-labels: ${{ vars.JIRA_EXTRA_LABELS }}
+          default-due-in-days: ${{ vars.JIRA_DEFAULT_DUE_IN_DAYS }}
+          github-repository: ${{ secrets.MILESTONES_REPO }}
+          github-token: ${{ secrets.MILESTONES_PAT }}
+          dry-run: ${{ inputs.dry-run || false }}
+          verbose: "true"
+      - name: Summary
+        run: |
+          echo "created=${{ steps.sync.outputs.created }}"
+          echo "updated=${{ steps.sync.outputs.updated }}"
+          echo "unchanged=${{ steps.sync.outputs.unchanged }}"
+          echo "skipped=${{ steps.sync.outputs.skipped }}"

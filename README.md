@@ -116,8 +116,8 @@ workflow to that repo, or you want one central sync job — set
 
 ```yaml
 with:
-  github-repository: your-org/other-repo
-  github-token: ${{ secrets.MILESTONES_PAT }}   # see note below
+  github-repository: ${{ secrets.MILESTONES_REPO }}   # see note below
+  github-token: ${{ secrets.MILESTONES_PAT }}         # see note below
   jira-base-url: https://your-org.atlassian.net
   jira-email: ${{ secrets.JIRA_EMAIL }}
   jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
@@ -133,6 +133,15 @@ contents (a fine-grained token scoped to just that repo, with `Issues: read`
 and `Contents: read`, is enough), store it as a secret (e.g.
 `MILESTONES_PAT`) in the repo running the workflow, and pass it as
 `github-token`.
+
+**Put `github-repository` in a secret, not a variable, on a public repo.**
+Repository *variables* (`vars.*`) are visible to anyone browsing the repo's
+settings or a workflow run's rendered `with:` block; *secrets* are masked.
+`owner/repo` on its own isn't sensitive, but on a public repo there's no
+reason to advertise which other repo you're pulling milestones from — store
+it as a secret (e.g. `MILESTONES_REPO`) alongside the PAT. See
+[`.github/workflows/jira-sync.yml`](.github/workflows/jira-sync.yml) in this
+repo for a working example (manual trigger + a 6-hourly cron).
 
 ## What gets written
 
