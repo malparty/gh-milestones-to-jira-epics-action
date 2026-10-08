@@ -38,7 +38,7 @@ inputs:
     required: false
     default: ""
   jira-extra-labels:
-    description: Comma-separated labels merged onto every epic (trimmed, deduped, no spaces).
+    description: Comma-separated labels merged onto every issue (trimmed, deduped, no spaces).
     required: false
     default: ""
   default-due-in-days:
